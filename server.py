@@ -1,28 +1,40 @@
 #!flask/bin/python
 
 from flask import Flask,jsonify,abort,request
-import os
-import shutil
+import os, shutil, time
+from threading import Thread
 
 app = Flask(__name__)
 
+logfile = 'render.log'
+blender = '/home/ubuntu/blender-2.73/blender'
+output_root = '/home/ubuntu/images'
+blend_root = '/home/ubuntu/blend'
+
+
 @app.route('/set_repo', methods=['POST', 'GET'])
 def set_repo():
-	print("checking for dir")
-	print os.path.isdir('/home/ubuntu/iae-sub')
-	if os.path.isdir('/home/ubuntu/iae-sub'):
-		print("yep, found it.  will delete...")
-		shutil.rmtree('/home/ubuntu/iae-sub')
-	cmd = 'git clone https://<username>:<password>"@%s ~/iae-sub' % (request.args.get('url'))
-	print cmd
+	blend_dir = '/home/ubuntu/blend'
+	if os.path.isdir(blend_dir):
+		shutil.rmtree(blend_dir)
+	cmd = 'git clone %s %s' % (request.args.get('url'), blend_dir)
 	os.system(cmd)
-	return "I'm going to set the repo to '" + request.args.get('url') + "'."
-
+	return ""
 
 
 @app.route('/render_start', methods=['POST','GET'])
 def render_start():
-	return print_args(request.args)
+	blend = os.path.join(blend_root, request.args.get('blend'))
+	output_dir = os.path.join(output_root,request.args.get('output_dir')+"#####")
+	start_frame = request.args.get('start_frame')
+	end_frame = request.args.get('end_frame')
+	if start_frame and end_frame:
+		start_frame = "--frame-start " + start_frame
+		end_frame = "--frame-end " + end_frame
+
+	t1 = Thread(target=render, args=(blender, blend, output_dir, start_frame, end_frame, logfile))
+	t1.start()
+	return ''
 
 
 @app.route('/render_stop', methods=['POST','GET'])
@@ -35,10 +47,9 @@ def render_status():
 	return print_args(request.args)
 
 
-
 app.route('/')
 def index():
-	return "This is a BlenderFarm API server.\n"
+	return "Hi, Bart!\n"
 
 
 
@@ -49,8 +60,27 @@ def print_args(args):
         return "returning " + ", ".join(arg_list)
 
 
+def render(blender, blend, output_dir, start_frame, end_frame, logfile):
+	cmd = '%s -noaudio --background %s --render-output %s %s %s --render-anim --render-format PNG >> %s' % (blender, blend, output_dir, start_frame, end_frame, logfile)
+	now = time.strftime("%c")
+	f = open(logfile, 'a')
+	f.write("---------------------- Starting %s render at %s ----------------------\n" % (blend, now))
+	f.write("%s\n" % cmd)
+	f.write("--------------------------------------------------------------------------\n")
+	f.flush()
+	f.close
+	os.system(cmd)
+	store()
+
+
+def store():
+	print "uploading to Swift..."
+
+
+
+
+
 if __name__ == '__main__':
 	#app.run(debug=True)
 	#app.run(host='0.0.0.0', port=port, debug=True)
 	app.run(host='::', debug=True)
-
