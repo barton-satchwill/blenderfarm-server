@@ -9,11 +9,13 @@ import swiftclient
 
 app = Flask(__name__)
 
+root = '/home/ubuntu'
 logfile = 'render.log'
-blender = '/home/ubuntu/blender-2.73/blender'
-output_root = '/home/ubuntu/images'
-blend_root = '/home/ubuntu/blend'
-
+bucket = 'mybucket'
+blender = 'blender'
+output_root = os.path.join(root, 'images')
+blend_root = os.path.join(root, 'blend')
+config_file = os.path.join(root, 'openrc')
 
 @app.route('/set_repo', methods=['POST', 'GET'])
 def set_repo():
@@ -51,12 +53,18 @@ def render_stop():
 def render_status():
 	hostname = subprocess.check_output('hostname')[:-1]
 	render_status = '================= ' + hostname + ' ====================\n'
-	cmd = shlex.split('grep "Saved" /home/ubuntu/render.log')
+	cmd = shlex.split('grep -E "Starting|Saved" %s' % (logfile))
 	p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 
 	for item in p.communicate():
-		print item
-		render_status = render_status + item + '\n'
+		render_status = render_status + item 
+
+	cmd = shlex.split('tail %s' % (logfile))
+	p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+
+	for item in p.communicate():
+		render_status = render_status + item
+
 	return render_status
 
 
@@ -113,9 +121,6 @@ def swift_status():
 
 
 def store():
-	root = '/home/ubuntu'
-	bucket = 'mybucket'
-
 	print "uploading to Swift..."
 	swift = swiftclient.Connection(
 		authurl=os.environ['OS_AUTH_URL'],
@@ -131,8 +136,18 @@ def store():
 			swift.put_object(bucket, f, open(f,'r'))
 
 
+def config():
+	cmd = ['bash', '-c', 'cat %s' % config_file]
+	proc = subprocess.Popen(cmd, stdout = subprocess.PIPE)
+	for line in proc.stdout:
+		line = line.replace('export ', '').replace('"', '').strip()
+		(key, _, value) = line.partition("=")
+		os.environ[key] = value
+	proc.communicate()
+
 
 
 if __name__ == '__main__':
+	config()
 	app.run(host='::', debug=True)
 
