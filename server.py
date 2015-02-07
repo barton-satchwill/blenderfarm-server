@@ -17,6 +17,21 @@ output_root = os.path.join(root_dir, 'images')
 output_dir = output_root
 
 
+
+@app.route('/inspect_blend', methods=['POST','GET'])
+def inspect_blend():
+	frames = ''
+	blend = os.path.join(blend_root, request.args.get('blend'))
+	cmd = shlex.split('blender -noaudio -b %s -P /usr/local/bin/blender-2.73/scripts/inspect_blend.py' % (blend))
+	print cmd
+	p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+
+	for item in p.communicate():
+		frames = frames + item
+	return frames
+
+
+
 @app.route('/set_repo', methods=['POST', 'GET'])
 def set_repo():
 	if os.path.isdir(blend_root):
