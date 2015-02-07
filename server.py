@@ -152,7 +152,7 @@ def store():
 	for dirname, subdirs, filenames in os.walk(output_root):
 		for filename in filenames:
 			absolute_name = os.path.join(dirname, filename)
-			relative_name = absolute_name.replace(root, '').lstrip('/')
+			relative_name = absolute_name.replace(root_dir, '').lstrip('/')
 			f = open(absolute_name, 'r')
 			swift.put_object(bucket, relative_name, f)
 
