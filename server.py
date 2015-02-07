@@ -1,4 +1,4 @@
-#!flask/bin/python
+#! /usr/bin/python
 
 import sys, os, shutil, time
 import subprocess, shlex
@@ -9,20 +9,25 @@ import swiftclient
 
 app = Flask(__name__)
 
-root = '/home/ubuntu'
-logfile = 'render.log'
-bucket = 'mybucket'
+root_dir = '/home/ubuntu'
+bucket = 'blender'
 blender = 'blender'
-output_root = os.path.join(root, 'images')
-blend_root = os.path.join(root, 'blend')
-config_file = os.path.join(root, 'openrc')
+blend_root = os.path.join(root_dir, 'blend')
+output_root = os.path.join(root_dir, 'images')
+output_dir = output_root
+
 
 @app.route('/set_repo', methods=['POST', 'GET'])
 def set_repo():
 	if os.path.isdir(blend_root):
 		shutil.rmtree(blend_root)
 	cmd = 'git clone %s %s' % (request.args.get('url'), blend_root)
-	os.system(cmd)
+	print cmd
+        cmd = shlex.split('git clone %s %s' % (request.args.get('url'), blend_root))
+        p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+
+        for item in p.communicate():
+                print item
 	return ""
 
 
@@ -30,14 +35,14 @@ def set_repo():
 @app.route('/render_start', methods=['POST','GET'])
 def render_start():
 	blend = os.path.join(blend_root, request.args.get('blend'))
-	output_dir = os.path.join(output_root,request.args.get('output_dir')+"#####")
+	output_dir = os.path.join(output_root, request.args.get('output_dir'))
 	start_frame = request.args.get('start_frame')
 	end_frame = request.args.get('end_frame')
 	if start_frame and end_frame:
 		start_frame = "--frame-start " + start_frame
 		end_frame = "--frame-end " + end_frame
 
-	t1 = Thread(target=render, args=(blender, blend, output_dir, start_frame, end_frame, logfile))
+	t1 = Thread(target=render, args=(blender, blend, output_dir+"#####", start_frame, end_frame, logfile))
 	t1.start()
 	return ''
 
@@ -52,7 +57,7 @@ def render_stop():
 @app.route('/render_status', methods=['POST','GET'])
 def render_status():
 	hostname = subprocess.check_output('hostname')[:-1]
-	render_status = '================= ' + hostname + ' ====================\n'
+	render_status = '\n\n================= ' + hostname + ' ====================\n'
 	cmd = shlex.split('grep -E "Starting|Saved" %s' % (logfile))
 	p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 
@@ -100,14 +105,13 @@ def render(blender, blend, output_dir, start_frame, end_frame, logfile):
 
 
 def swift_status():
-	root = '/home/ubuntu'
-	bucket = 'mybucket'
-
 	print "reporting on Swift..."
 	swift = swiftclient.Connection(
-	authurl=os.environ['OS_AUTH_URL'], key=os.environ['OS_PASSWORD'],
-	user=os.environ['OS_USERNAME'], tenant_name=os.environ['OS_TENANT_NAME'],
-	auth_version=2)
+		authurl=os.environ['OS_AUTH_URL'], 
+		key=os.environ['OS_PASSWORD'],
+		user=os.environ['OS_USERNAME'], 
+		tenant_name=os.environ['OS_TENANT_NAME'],
+		auth_version=2)
 
 	print "----------------"
 	for container in swift.get_account()[1]:
@@ -130,13 +134,17 @@ def store():
 		auth_version=2)
 
 	swift.put_container(bucket)
-	for dirname, subdirs, filenames in os.walk(os.path.join(root, 'images')):
+	for dirname, subdirs, filenames in os.walk(output_root):
 		for filename in filenames:
-			f = os.path.join(dirname, filename).replace(root, '').lstrip('/')
-			swift.put_object(bucket, f, open(f,'r'))
+			absolute_name = os.path.join(dirname, filename)
+			relative_name = absolute_name.replace(root, '').lstrip('/')
+			f = open(absolute_name, 'r')
+			swift.put_object(bucket, relative_name, f)
+
 
 
 def config():
+	config_file = '/usr/local/bin/blenderfarm/server.config'
 	cmd = ['bash', '-c', 'cat %s' % config_file]
 	proc = subprocess.Popen(cmd, stdout = subprocess.PIPE)
 	for line in proc.stdout:
