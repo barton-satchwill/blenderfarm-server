@@ -120,7 +120,8 @@ def render(blender, blend, output_dir, start_frame, end_frame, logfile):
 
 
 def swift_status():
-	print "reporting on Swift..."
+	output = output_dir.replace(root, '').lstrip('/')
+	print "reporting on Swift upload of %s" % output
 	swift = swiftclient.Connection(
 		authurl=os.environ['OS_AUTH_URL'], 
 		key=os.environ['OS_PASSWORD'],
@@ -130,12 +131,11 @@ def swift_status():
 
 	print "----------------"
 	for container in swift.get_account()[1]:
-		#if bucket is container['name']:
-		if True:
-			print container['name']
-			for data in swift.get_container(container['name'])[1]:
+		print "container '%s'" % container['name']
+		for data in swift.get_container(container['name'])[1]:
+			if output in data['name']:
 				print '{0}\t{1}\t{2}'.format(data['name'], data['bytes'], data['last_modified'])
-			print "----------------"
+	print "----------------"
 
 
 
