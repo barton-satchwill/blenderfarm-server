@@ -12,10 +12,10 @@ app = Flask(__name__)
 root_dir = '/home/ubuntu'
 bucket = 'blender'
 blender = 'blender'
+logfile = os.path.join(root_dir, 'render.log')
 blend_root = os.path.join(root_dir, 'blend')
 output_root = os.path.join(root_dir, 'images')
 output_dir = output_root
-
 
 
 @app.route('/inspect_blend', methods=['POST','GET'])
