@@ -156,5 +156,4 @@ if __name__ == '__main__':
 	config()
 	app.run(host='::', debug=True)
 
-
-ubuntu@blenderfarm-01:~$ 
+\
