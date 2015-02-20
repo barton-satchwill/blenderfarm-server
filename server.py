@@ -88,10 +88,11 @@ def render_status():
 	return render_status
 
 
+@app.route('/upload', methods=['POST','GET'])
+def upload():
+	pseudo_dir = request.args.get('dir')
+	return store(pseudo_dir)
 
-app.route('/')
-def index():
-	return "Hi, Bart!\n"
 
 
 # ==================================================================================
@@ -104,8 +105,8 @@ def print_args(args):
 
 
 
-def render(blender, blend, output_dir, start_frame, end_frame, logfile):
-	cmd = '%s -noaudio --background %s --render-output %s %s %s --render-anim --render-format PNG >> %s' % (blender, blend, output_dir, start_frame, end_frame, logfile)
+def render(blender, blend, output_path, start_frame, end_frame, logfile):
+	cmd = '%s -noaudio --background %s --render-output %s %s %s --render-anim --render-format PNG >> %s' % (blender, blend, output_path, start_frame, end_frame, logfile)
 	now = time.strftime("%c")
 	f = open(logfile, 'a')
 	f.write("---------------------- Starting %s render at %s ----------------------\n" % (blend, now))
@@ -114,33 +115,13 @@ def render(blender, blend, output_dir, start_frame, end_frame, logfile):
 	f.flush()
 	f.close
 	os.system(cmd)
-	store()
-	swift_status()
+	store(os.path.dirname(output_path))
 
 
 
-def swift_status():
-	output = output_dir.replace(root, '').lstrip('/')
-	print "reporting on Swift upload of %s" % output
-	swift = swiftclient.Connection(
-		authurl=os.environ['OS_AUTH_URL'], 
-		key=os.environ['OS_PASSWORD'],
-		user=os.environ['OS_USERNAME'], 
-		tenant_name=os.environ['OS_TENANT_NAME'],
-		auth_version=2)
-
-	print "----------------"
-	for container in swift.get_account()[1]:
-		print "container '%s'" % container['name']
-		for data in swift.get_container(container['name'])[1]:
-			if output in data['name']:
-				print '{0}\t{1}\t{2}'.format(data['name'], data['bytes'], data['last_modified'])
-	print "----------------"
-
-
-
-def store():
-	print "uploading to Swift..."
+def store(pseudo_dir):
+	pseudo_dir = os.path.join(output_root, pseudo_dir)
+	print "uploading '%s' to Swift..." % pseudo_dir
 	swift = swiftclient.Connection(
 		authurl=os.environ['OS_AUTH_URL'],
 		key=os.environ['OS_PASSWORD'],
@@ -149,12 +130,13 @@ def store():
 		auth_version=2)
 
 	swift.put_container(bucket)
-	for dirname, subdirs, filenames in os.walk(output_root):
+	for dirname, subdirs, filenames in os.walk(pseudo_dir):
 		for filename in filenames:
 			absolute_name = os.path.join(dirname, filename)
 			relative_name = absolute_name.replace(root_dir, '').lstrip('/')
 			f = open(absolute_name, 'r')
 			swift.put_object(bucket, relative_name, f)
+	return "uploaded '%s' to Swift..." % pseudo_dir
 
 
 
@@ -174,3 +156,5 @@ if __name__ == '__main__':
 	config()
 	app.run(host='::', debug=True)
 
+
+ubuntu@blenderfarm-01:~$ 
